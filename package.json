@@ -1,0 +1,14 @@
+{
+  "name": "cache-control-demo",
+  "version": "1.0.0",
+  "description": "Hands-on demo of Cache-Control, ETag, stale-while-revalidate and stale-if-error with Express",
+  "main": "server.js",
+  "scripts": {
+    "origin": "node server.js",
+    "proxy": "node cache-proxy.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

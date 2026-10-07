@@ -1,0 +1,17 @@
+# Two containers: your Express origin + a real nginx reverse proxy/cache in front of it.
+#
+#   docker compose up --build
+#
+#   Browser / curl  -->  nginx (localhost:4000)  -->  origin (server.js, inside the compose network)
+#
+# Port 3000 is published too, ONLY so you can curl the origin directly and call the
+# /admin/* demo switches. Real clients should talk to nginx on 4000.
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    restart: on-failure # nginx resolves "origin" once at startup; retry if it was not ready yet
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./nginx.docker.conf:/etc/nginx/nginx.conf:ro

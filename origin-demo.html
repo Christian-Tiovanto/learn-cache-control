@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Browser cache test: straight to the origin</title>
+  <style>
+    :root {
+      --ink: #1d2433;
+      --muted: #5b6477;
+      --line: #d9dde5;
+      --bg: #ffffff;
+      --panel: #f3f5f8;
+      --browser: #7a4fd6;
+      --origin: #b4461f;
+      --proxy: #1f7a4d;
+      --warn: #946200;
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.5;
+    }
+
+    main {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 20px 60px;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin: 0 0 4px;
+    }
+
+    h2 {
+      font-size: 1rem;
+      margin: 0 0 10px;
+    }
+
+    p {
+      max-width: 74ch;
+      color: var(--muted);
+      margin: 0 0 10px;
+    }
+
+    code {
+      font-size: .88em;
+    }
+
+    .bench {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: minmax(270px, 350px) 1fr;
+      margin-top: 18px;
+      align-items: start;
+    }
+
+    @media (max-width: 860px) {
+      .bench {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: .9rem;
+      margin: 10px 0 4px;
+    }
+
+    select,
+    input {
+      width: 100%;
+      padding: 7px 8px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font: inherit;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .buttons {
+      display: grid;
+      gap: 6px;
+    }
+
+    button {
+      text-align: left;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--ink);
+    }
+
+    button:focus-visible,
+    select:focus-visible,
+    input:focus-visible {
+      outline: 3px solid #8fb4ff;
+      outline-offset: 1px;
+    }
+
+    button small {
+      display: block;
+      color: var(--muted);
+    }
+
+    .row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .row button {
+      flex: 1 1 auto;
+      text-align: center;
+    }
+
+    .scroll {
+      overflow-x: auto;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: .87rem;
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+
+    th {
+      color: var(--muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .who {
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .who.browser {
+      color: var(--browser);
+    }
+
+    .who.origin {
+      color: var(--origin);
+    }
+
+    .who.proxy {
+      color: var(--proxy);
+    }
+
+    .target-box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 6px 12px 12px;
+      margin: 12px 0 0;
+      background: var(--bg);
+    }
+
+    .target-box legend {
+      padding: 0 6px;
+      font-size: .9rem;
+    }
+
+    .radio {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      margin: 8px 0;
+      cursor: pointer;
+    }
+
+    .radio input {
+      width: auto;
+      margin-top: 4px;
+    }
+
+    .radio small {
+      display: block;
+      color: var(--muted);
+    }
+
+    .radio:has(input:checked) strong {
+      text-decoration: underline;
+    }
+
+    .who small {
+      display: block;
+      font-weight: 400;
+      color: var(--muted);
+    }
+
+    .empty {
+      color: var(--muted);
+      padding: 16px 8px;
+    }
+
+    .note {
+      font-size: .88rem;
+      color: var(--warn);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      font-size: .8rem;
+    }
+
+    details {
+      margin-top: 12px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    details ul {
+      margin: 8px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      font-size: .9rem;
+      max-width: 80ch;
+    }
+
+    details li {
+      margin-bottom: 6px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --ink: #e8ecf4;
+        --muted: #a3adc2;
+        --line: #343c4f;
+        --bg: #12161f;
+        --panel: #1a2030;
+        --browser: #b79bff;
+        --origin: #ff9b73;
+        --proxy: #62d39a;
+        --warn: #f0c36a;
+      }
+
+      select,
+      input,
+      button,
+      .badge {
+        background: #12161f;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>Browser cache test: straight to the origin</h1>
+    <p>This page is served by <code>server.js</code> itself. By default every <code>fetch()</code> goes
+      <strong>directly to the origin with no proxy or CDN</strong>, so only your <strong>browser's own cache</strong> is
+      in play.
+      Switch <strong>Send requests to</strong> to the <strong>nginx proxy</strong> and the answer can also come from
+      nginx's cache.
+      The tables show what the browser received, and what the origin <em>actually saw</em>.
+    </p>
+    <p class="note">Use a single tab, and keep DevTools "Disable cache" unticked, or the browser cache never answers.
+    </p>
+    <p id="ttl-note" class="note" hidden></p>
+
+    <div class="bench">
+      <section aria-labelledby="send-h">
+        <h2 id="send-h">Send a request</h2>
+        <label for="endpoint">Endpoint</label>
+        <select id="endpoint">
+          <option value="/api/products">/api/products</option>
+          <option value="/api/user/profile">/api/user/profile</option>
+          <option value="/api/inventory">/api/inventory</option>
+          <option value="/api/user/payment-methods">/api/user/payment-methods</option>
+          <option value="/api/trending">/api/trending</option>
+          <option value="/api/status">/api/status</option>
+        </select>
+        <p id="cfg-note" style="font-size:.85rem;margin:6px 0 0"></p>
+
+        <fieldset class="target-box">
+          <legend>Send requests to</legend>
+          <label class="radio"><input type="radio" name="target" value="origin" checked>
+            <span><strong>The origin</strong> <code id="origin-addr"></code><small>this page's own server, no
+                proxy</small></span></label>
+          <label class="radio"><input type="radio" name="target" value="proxy">
+            <span><strong>The nginx proxy</strong><small>a cache in front of the origin</small></span></label>
+          <input id="proxy-base" value="http://localhost:4000" aria-label="Proxy address">
+          <p id="target-note" style="font-size:.85rem;margin:6px 0 0" hidden>
+            The proxy is on another port, so this is a cross-origin request: nginx must send CORS headers
+            (already in <code>nginx.docker.conf</code>). Keep opening this page as
+            <code>http://localhost:3000/demo</code>.<br>
+            <strong>Always "Browser cache"?</strong> The response says <code>max-age=60</code>, so your browser caches
+            it too and never asks nginx.
+            Click <em>cache: "reload"</em> or <em>"no-store"</em> to skip the browser's copy, or start the server with
+            <code>cache-config.nginx-only.json</code> (see README) so only nginx caches.
+          </p>
+        </fieldset>
+
+        <label>Using the fetch <code>cache</code> option (the browser writes the request header for you)</label>
+        <div class="buttons" id="modes">
+          <button data-mode="default">cache: "default"<small>Normal request</small></button>
+          <button data-mode="no-cache">cache: "no-cache"<small>Always check with the server first</small></button>
+          <button data-mode="reload">cache: "reload"<small>Skip the cache, store the new response</small></button>
+          <button data-mode="no-store">cache: "no-store"<small>Skip the cache, store nothing</small></button>
+          <button data-mode="force-cache">cache: "force-cache"<small>Use any stored copy, even a stale
+              one</small></button>
+        </div>
+
+        <label for="custom">Or write the request header yourself</label>
+        <input id="custom" value="max-age=0" aria-describedby="custom-help">
+        <p id="custom-help" style="font-size:.85rem;margin:4px 0 8px">The header is only visible to the server if a
+          request <em>leaves</em> the browser.
+          Chromium browsers (Chrome, Edge, Brave) act on exactly <code>max-age=0</code> and <code>no-cache</code> and
+          then skip or validate their stored copy.
+          A number like <code>max-age=6</code> is still sent when a request goes out, but your browser's own cache does
+          not use it to decide:
+          a fresh copy is simply replayed, no request is made, and the header never reaches the server. Request
+          <code>max-age=N</code> works against
+          caches that implement it (see <code>cache-proxy.js</code>).</p>
+        <div class="buttons"><button id="send-custom">Send with this Cache-Control header</button></div>
+
+        <label>Change what the server does</label>
+        <div class="row">
+          <button id="sell">Sell 1 widget</button>
+          <button id="fail-on">Outage ON</button>
+          <button id="fail-off">Outage OFF</button>
+        </div>
+        <div class="row"><button id="clear">Clear the click table</button></div>
+        <p id="admin-msg" style="font-size:.85rem;margin-top:8px" role="status"></p>
+      </section>
+
+      <div class="stack">
+        <section aria-labelledby="log-h">
+          <h2 id="log-h">What happened to each click</h2>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Request</th>
+                  <th>Answered by</th>
+                  <th>Page got</th>
+                  <th>Response Cache-Control</th>
+                  <th>Data age</th>
+                  <th>originHit</th>
+                </tr>
+              </thead>
+              <tbody id="clicks">
+                <tr>
+                  <td colspan="6" class="empty">Send a request to see which layer answers it.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section aria-labelledby="origin-h">
+          <h2 id="origin-h">What the origin server saw <span class="badge">ground truth</span></h2>
+          <p style="font-size:.88rem">Newest first. Updated after each click (no constant polling). A click with
+            <em>no</em> new line
+            here was answered by the browser cache. A line that appears a moment <em>after</em> a cache answer is a
+            background refresh.</p>
+          <div class="row" style="margin:0 0 10px"><button id="refresh-origin" style="flex:0 0 auto">Refresh origin
+              log</button></div>
+          <div class="scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Time</th>
+                  <th>Request</th>
+                  <th>Status</th>
+                  <th>If-None-Match</th>
+                  <th>Request Cache-Control the browser sent</th>
+                </tr>
+              </thead>
+              <tbody id="origin-log">
+                <tr>
+                  <td colspan="6" class="empty">Nothing has reached the server yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <details>
+      <summary>What to expect (assuming the default values in cache-config.json)</summary>
+      <ul>
+        <li><strong>/api/products</strong>: click <em>default</em> twice. The 2nd click is answered by the browser cache
+          and the origin table gets no new line. <em>no-cache</em> forces a request: the origin sees
+          <code>max-age=0</code> and <code>If-None-Match</code>, and the body changes, so it answers 200.</li>
+        <li><strong>/api/user/profile</strong>: <code>private</code> is fine for a browser, so it is cached for 5
+          minutes like products.</li>
+        <li><strong>/api/inventory</strong>: <code>max-age=0, must-revalidate</code> plus an ETag. Every click reaches
+          the origin. After the first, the origin answers <strong>304</strong> while the stock is unchanged. The page
+          still sees status 200, because the browser reuses its stored body. Click <em>Sell 1 widget</em> and the next
+          request becomes a 200 with new data.</li>
+        <li><strong>/api/user/payment-methods</strong>: <code>no-store</code>, so every click reaches the origin.</li>
+        <li><strong>/api/trending</strong> (<code>stale-while-revalidate</code>): within 60 s it is a cache hit. After
+          60 s a browser that supports the directive serves the old copy and refreshes in the background. But per
+          Chromium developers, Chrome applied it only to subresources and not to <code>fetch()</code> calls (an older
+          discussion, so verify). Watch the origin table to see what really happens.</li>
+        <li><strong>/api/status</strong> (<code>stale-if-error</code>): turn <em>Outage ON</em> after the 5 minutes pass
+          and request again. Browsers generally don't implement <code>stale-if-error</code>, so expect the 503 to reach
+          the page. A proxy or CDN is where it works.</li>
+        <li><strong>Via the nginx proxy:</strong> click <em>default</em> twice on <code>/api/products</code>. 1st: nginx
+          asks the origin (MISS). 2nd: the <em>browser</em> answers. Now use <em>reload</em>: the browser skips its
+          copy, nginx answers <strong>HIT</strong> and the origin table stays quiet. nginx ignores a client
+          <code>no-cache</code> by default (see "nginx received request Cache-Control").</li>
+        <li><strong>Edited cache-config.json?</strong> Only <em>new</em> responses carry the new headers. A copy your
+          browser already stored keeps the freshness it was given, so fetch it again with <code>cache: "reload"</code>
+          (or clear the cache) before judging the change.</li>
+        <li><strong>Waiting is real here.</strong> Start the origin with <code>TTL_DIVISOR=30</code> to shrink every
+          lifetime 30x.</li>
+      </ul>
+    </details>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    async function peek() {
+      const r = await fetch('/admin/requests', { cache: 'no-store' });
+      return r.json();
+    }
+
+    // ---- ground truth table (what the origin saw) ----------------------------
+    function renderOrigin(info) {
+      const body = $('origin-log');
+      if (!info.recent.length) {
+        body.innerHTML = '<tr><td colspan="6" class="empty">Nothing has reached the server yet.</td></tr>';
+        return;
+      }
+      body.innerHTML = info.recent.slice().reverse().map((e) => `<tr>
+      <td>${e.no}</td><td>${esc(e.time)}</td>
+      <td><code>${esc(e.method)} ${esc(e.url)}</code></td>
+      <td>${e.status === null ? '…' : esc(e.status) + (e.status === 304 ? ' (Not Modified, no body)' : '')}</td>
+      <td>${e.ifNoneMatch ? 'yes (revalidation)' : 'no'}</td>
+      <td>${e.requestCacheControl ? '<code>' + esc(e.requestCacheControl) + '</code>' : '<em>none</em>'}${e.pragma ? ' + Pragma: ' + esc(e.pragma) : ''}</td>
+    </tr>`).join('');
+    }
+
+    let lastTotal = null; // origin request counter as of the last time we looked
+
+    async function refreshOrigin() {
+      try {
+        const info = await peek();
+        lastTotal = info.total;
+        renderOrigin(info);
+        const note = $('ttl-note');
+        if (info.ttlDivisor > 1) {
+          note.hidden = false;
+          note.textContent = `The origin is running with TTL_DIVISOR=${info.ttlDivisor}: every lifetime is ${info.ttlDivisor}x shorter than the values in your config, so you don't wait long.`;
+        } else { note.hidden = true; }
+        return info;
+      } catch (e) { return null; }
+    }
+    // Show the headers each endpoint is sending RIGHT NOW (they come from cache-config.json)
+    async function refreshConfig() {
+      try {
+        const r = await fetch('/admin/config', { cache: 'no-store' });
+        const cfg = await r.json();
+        document.querySelectorAll('#endpoint option').forEach((o) => {
+          const h = cfg.effective[o.value];
+          o.textContent = h && h['Cache-Control'] ? `${o.value}  (${h['Cache-Control']})` : `${o.value}  (no Cache-Control)`;
+        });
+        $('cfg-note').textContent = cfg.error
+          ? 'cache-config.json has an error, the last good values are still active: ' + cfg.error
+          : 'Values come from cache-config.json: edit, save, and press "Refresh origin log" here.';
+      } catch (e) { /* the page still works without it */ }
+    }
+
+    // No timer loop here: the origin is only asked (a) once on load, (b) after a click, (c) when you press Refresh.
+    refreshOrigin();
+    refreshConfig();
+    $('refresh-origin').addEventListener('click', () => { refreshOrigin(); refreshConfig(); });
+
+    // ---- where the requests go ------------------------------------------------
+    const seenProxyIds = new Set(); // X-Proxy-Request-Id values already received: a repeat means the browser replayed an old response
+    const getTarget = () => document.querySelector('input[name="target"]:checked').value;
+    $('origin-addr').textContent = location.origin;
+
+    // Remember the choice across page reloads (a normal page, so localStorage is fine here)
+    try {
+      const saved = localStorage.getItem('cacheDemoTarget');
+      if (saved) document.querySelector(`input[name="target"][value="${saved}"]`).checked = true;
+      const savedBase = localStorage.getItem('cacheDemoProxyBase');
+      if (savedBase) $('proxy-base').value = savedBase;
+    } catch (e) { /* storage unavailable: the page still works */ }
+
+    function updateTarget() {
+      $('target-note').hidden = getTarget() !== 'proxy';
+      try { localStorage.setItem('cacheDemoTarget', getTarget()); localStorage.setItem('cacheDemoProxyBase', $('proxy-base').value); } catch (e) { }
+    }
+    document.querySelectorAll('input[name="target"]').forEach((r) => r.addEventListener('change', updateTarget));
+    $('proxy-base').addEventListener('change', updateTarget);
+    updateTarget();
+
+    // ---- one click ------------------------------------------------------------
+    function addClickRow(cells) {
+      const body = $('clicks');
+      if (body.querySelector('.empty')) body.innerHTML = '';
+      const tr = document.createElement('tr');
+      tr.innerHTML = cells.map((c) => `<td>${c}</td>`).join('');
+      body.prepend(tr);
+    }
+
+    async function send(label, init) {
+      const url = $('endpoint').value;
+      const toProxy = getTarget() === 'proxy';
+      const base = toProxy ? $('proxy-base').value.trim().replace(/\/$/, '') : '';
+      if (lastTotal === null) await refreshOrigin();
+      const baseline = lastTotal;
+      let resp = null, text = '', failure = null;
+      try {
+        resp = await fetch(base + url, init);
+        text = await resp.text();
+      } catch (e) { failure = e; }
+      const received = Date.now();
+      await sleep(300); // give a quick background refresh time to reach the server
+      const after = await peek();
+      lastTotal = after.total;
+      renderOrigin(after);
+
+      const seen = after.recent.filter((e) => e.no > baseline && e.url === url);
+      const reached = seen.length > 0;
+      const entry = seen[seen.length - 1];
+
+      // Headers only the proxy adds (readable thanks to Access-Control-Expose-Headers)
+      const proxyId = toProxy && resp ? resp.headers.get('x-proxy-request-id') : null;
+      const proxyStatus = toProxy && resp ? resp.headers.get('x-cache-status') : null;
+      const proxySaw = toProxy && resp ? resp.headers.get('x-proxy-saw-request-cache-control') : null;
+
+      let who, cls, detail = '';
+      if (failure && !reached) {
+        who = 'Nobody (request failed)'; cls = '';
+        if (toProxy) detail = 'Blocked by CORS, or nothing is listening there. Is nginx running, and did you open this page as http://localhost:3000/demo?';
+      } else if (!toProxy) {
+        if (!reached) { who = 'Browser cache'; cls = 'browser'; }
+        else if (entry && entry.status === 304) { who = 'Origin: 304 (body reused from browser cache)'; cls = 'origin'; }
+        else { who = `Origin: full response${entry && entry.status ? ' (' + entry.status + ')' : ''}`; cls = 'origin'; }
+      } else if (!proxyId) {
+        who = 'Unknown'; cls = '';
+        detail = 'No X-Proxy-Request-Id header: is this really the nginx from nginx.docker.conf?';
+      } else if (seenProxyIds.has(proxyId)) {
+        who = 'Browser cache'; cls = 'browser';
+        detail = 'Same X-Proxy-Request-Id as an earlier response: the request never left the browser.';
+      } else {
+        seenProxyIds.add(proxyId);
+        if (reached) {
+          who = `nginx asked the origin${entry && entry.status ? ' (' + entry.status + ')' : ''}`; cls = 'origin';
+          detail = `X-Cache-Status: ${proxyStatus || '?'}`;
+        } else {
+          who = 'nginx cache, origin not contacted'; cls = 'proxy';
+          detail = `X-Cache-Status: ${proxyStatus || '?'}${proxyStatus === 'STALE' ? ' (a background refresh may show up in the origin table a moment later)' : ''}`;
+        }
+        if (proxySaw) detail += ` · nginx received request Cache-Control: ${proxySaw}`;
+      }
+
+      let json = {};
+      try { json = JSON.parse(text); } catch (e) { }
+      const ageSec = json.generatedAt ? Math.max(0, Math.round((received - Date.parse(json.generatedAt)) / 1000)) + ' s' : 'n/a';
+      const cc = resp ? resp.headers.get('cache-control') : null;
+
+      // One single re-check (not a loop): a stale copy (browser or nginx) is refreshed a moment later.
+      if (!reached) setTimeout(refreshOrigin, 1500);
+
+      addClickRow([
+        `<code>${esc(url)}</code><br>${esc(label)}<br><em>sent to ${esc(toProxy ? 'the proxy ' + base : 'the origin ' + location.origin)}</em>`,
+        `<span class="who ${cls}">${esc(who)}${detail ? '<small>' + esc(detail) + '</small>' : ''}</span>`,
+        failure ? esc(failure.message) : `HTTP ${resp.status}`,
+        cc ? '<code>' + esc(cc) + '</code>' : '<em>none</em>',
+        esc(ageSec),
+        esc(json.originHit ?? (json.widget !== undefined ? `n/a (widget ${json.widget})` : '')),
+      ]);
+    }
+
+    document.querySelectorAll('button[data-mode]').forEach((b) =>
+      b.addEventListener('click', () => send(`fetch cache: "${b.dataset.mode}"`, { cache: b.dataset.mode })));
+
+    $('send-custom').addEventListener('click', () => {
+      const v = $('custom').value.trim();
+      send(`header Cache-Control: ${v}`, { headers: { 'Cache-Control': v } });
+    });
+
+    // ---- server switches ------------------------------------------------------
+    async function admin(path, msg) {
+      try {
+        const r = await fetch(path, { method: 'POST' });
+        $('admin-msg').textContent = r.ok ? msg : `Failed (HTTP ${r.status})`;
+      } catch (e) { $('admin-msg').textContent = 'Failed: ' + e.message; }
+    }
+    $('sell').addEventListener('click', () => admin('/admin/sell', 'Sold one widget. /api/inventory has a new ETag now.'));
+    $('fail-on').addEventListener('click', () => admin('/admin/fail/on', '/api/status now answers 503 at the origin.'));
+    $('fail-off').addEventListener('click', () => admin('/admin/fail/off', '/api/status is healthy again.'));
+    $('clear').addEventListener('click', () => {
+      $('clicks').innerHTML = '<tr><td colspan="6" class="empty">Send a request to see which layer answers it.</td></tr>';
+      $('admin-msg').textContent = 'Cleared the click table. The origin table keeps the server-side history.';
+    });
+  </script>
+</body>
+
+</html>
