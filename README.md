@@ -9,14 +9,15 @@ Reproduce and watch every caching behavior from both sides of `Cache-Control`:
 
 ## Files
 
-| File | What it is |
-|---|---|
-| `server.js` | The **origin**: your 6 endpoints, unchanged, plus a request log and two demo controls |
-| `cache-proxy.js` | A tiny **shared cache** (a CDN in miniature) with a **virtual clock**. Follows response AND request directives |
-| `docker-compose.yml`, `Dockerfile`, `nginx.docker.conf` | Run the origin + a **real nginx** reverse proxy in Docker (Part 3) |
-| `nginx.conf` | The same nginx setup for nginx installed directly on your machine |
-| `demo.html` | Browser page (served at `http://localhost:4000/demo`) that sends request directives from a real browser |
-| `test.js` | Automated check of every scenario (`npm test`, 48 checks) |
+| File                                                    | What it is                                                                                                                                                         |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `server.js`                                             | The **origin**: your 6 endpoints, unchanged, plus a request log and two demo controls                                                                              |
+| `cache-proxy.js`                                        | A tiny **shared cache** (a CDN in miniature) with a **virtual clock**. Follows response AND request directives                                                     |
+| `docker-compose.yml`, `Dockerfile`, `nginx.docker.conf` | Run the origin + a **real nginx** reverse proxy in Docker (Part 3)                                                                                                 |
+| `nginx.conf`                                            | The same nginx setup for nginx installed directly on your machine                                                                                                  |
+| `demo.html`                                             | Browser page (served at `http://localhost:4000/demo`) that sends request directives from a real browser                                                            |
+| `test.js`                                               | Automated check of every scenario (`npm test`, 48 checks)                                                                                                          |
+| `swr-test.js`                                           | Small script that calls nginx once a second and prints `X-Cache-Status`, response time and data age, to **see stale-while-revalidate work** (see the last section) |
 
 Why the proxy? Browsers don't reliably support `stale-while-revalidate` / `stale-if-error`,
 and nobody wants to wait 3,600 seconds. The proxy follows the same rules as a CDN and lets
@@ -217,7 +218,7 @@ show -H "Cache-Control: no-store" localhost:4000/api/products   # BYPASS (reques
 show localhost:4000/api/products                                # MISS: nothing was stored
 ```
 
-(The spec only forbids *storing*. This demo also skips any stored copy, to keep the result obvious.)
+(The spec only forbids _storing_. This demo also skips any stored copy, to keep the result obvious.)
 
 ## 12. A cache that ignores request directives
 
@@ -250,13 +251,13 @@ which request `Cache-Control` the proxy actually received.
 
 The fetch `cache` option makes the browser write the request directive for you (Fetch spec):
 
-| fetch option | Request header the browser sends | Browser's own cache |
-|---|---|---|
-| `cache: "default"` | none | used normally |
-| `cache: "no-cache"` | `Cache-Control: max-age=0` | must check with server first |
-| `cache: "reload"` | `Cache-Control: no-cache` (+ `Pragma: no-cache`) | skipped, response stored |
-| `cache: "no-store"` | `Cache-Control: no-cache` (+ `Pragma: no-cache`) | skipped, nothing stored |
-| `cache: "force-cache"` | none | any stored copy used, even stale |
+| fetch option           | Request header the browser sends                 | Browser's own cache              |
+| ---------------------- | ------------------------------------------------ | -------------------------------- |
+| `cache: "default"`     | none                                             | used normally                    |
+| `cache: "no-cache"`    | `Cache-Control: max-age=0`                       | must check with server first     |
+| `cache: "reload"`      | `Cache-Control: no-cache` (+ `Pragma: no-cache`) | skipped, response stored         |
+| `cache: "no-store"`    | `Cache-Control: no-cache` (+ `Pragma: no-cache`) | skipped, nothing stored          |
+| `cache: "force-cache"` | none                                             | any stored copy used, even stale |
 
 Try this sequence on `/api/products`:
 
@@ -342,15 +343,15 @@ docker compose restart nginx         # nginx looks up "origin" only at startup, 
 
 ## What was tested with nginx 1.24 (and how it differs from the demo proxy)
 
-| Behavior | Real nginx |
-|---|---|
-| `public, max-age=N` | Stored, HIT until N seconds pass |
-| `private`, `no-store` | Not stored (every request reaches the origin) |
-| `max-age=0` (`/api/inventory`) | Not stored, so no 304 revalidation either |
-| `stale-while-revalidate` | Works (STALE, then a background refresh) with `proxy_cache_background_update on` |
-| `stale-if-error`, origin unreachable | Works, and the time window is respected |
-| `stale-if-error`, origin answers 503 | **Not applied.** Needs `proxy_cache_use_stale ... http_503`, which ignores the time window |
-| Client `no-cache` / `max-age=0` request | **Ignored** (HIT anyway) |
+| Behavior                                | Real nginx                                                                                 |
+| --------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `public, max-age=N`                     | Stored, HIT until N seconds pass                                                           |
+| `private`, `no-store`                   | Not stored (every request reaches the origin)                                              |
+| `max-age=0` (`/api/inventory`)          | Not stored, so no 304 revalidation either                                                  |
+| `stale-while-revalidate`                | Works (STALE, then a background refresh) with `proxy_cache_background_update on`           |
+| `stale-if-error`, origin unreachable    | Works, and the time window is respected                                                    |
+| `stale-if-error`, origin answers 503    | **Not applied.** Needs `proxy_cache_use_stale ... http_503`, which ignores the time window |
+| Client `no-cache` / `max-age=0` request | **Ignored** (HIT anyway)                                                                   |
 
 So: the headers work on a real cache, but real caches have their own switches and limits, and
 reading the documentation of your specific cache matters.
@@ -366,8 +367,12 @@ curl -s localhost:4000/__store      # what is stored, how old, with which Cache-
 (Or use the page from section 14.) Open `http://localhost:3000` (a 404 page is fine), open DevTools, and run this in the **Console**:
 
 ```js
-const t = () => fetch('/api/products').then(r => r.json()).then(j => console.log(j.originHit, j.generatedAt));
-t(); setTimeout(t, 1000);
+const t = () =>
+  fetch("/api/products")
+    .then((r) => r.json())
+    .then((j) => console.log(j.originHit, j.generatedAt));
+t();
+setTimeout(t, 1000);
 ```
 
 Both lines print the **same** `originHit` (the second came from the browser cache), and the origin
@@ -375,6 +380,7 @@ log shows one request. Do the same with `/api/trending`, `/api/user/profile` (ca
 browser) and `/api/user/payment-methods` (a new request every time).
 
 Gotchas:
+
 - **Hard reload** (Ctrl+Shift+R) makes the browser send `Cache-Control: no-cache`, which forces a full
   response and bypasses everything above. Use the console snippet or normal navigation to test.
 - In DevTools > Network, untick **Disable cache**, or you'll never see a cache hit.
@@ -383,5 +389,55 @@ Gotchas:
 
 The same headers work unchanged on CloudFront, Fastly, etc. Point the frontend at the CDN domain instead
 of the proxy. Only the cache policy (TTL limits, cache key) is configured on the CDN side.
-#   l e a r n - c a c h e - c o n t r o l  
- 
+
+## Test stale-while-revalidate with `swr-test.js`
+
+`swr-test.js` calls an URL once a second and prints what the cache did. It uses Node's built-in `fetch` (Node 18+), which has **no HTTP cache**,
+so only nginx is involved and the browser can't interfere.
+
+```bash
+node swr-test.js                                   # 60 requests to http://localhost:4000/api/trending
+node swr-test.js http://localhost:4000/api/trending 40   # your own URL and number of requests
+```
+
+### What you need running
+
+1. **`server.js`** (the origin) with a **slow** `/api/trending` and a stale window, for example:
+   - the handler waits 10 seconds before answering (a `setTimeout` inside the route), and
+   - `Cache-Control: public, max-age=5, stale-while-revalidate=3600`
+2. **nginx** in front of it (`docker compose up`, port 4000) with `proxy_cache_background_update on;` and **`keepalive_timeout 0;`** in `nginx.docker.conf`.
+
+Why the slow origin: a refresh that takes milliseconds hides the point of `stale-while-revalidate`. With a 10 s refresh, "serve the old copy now"
+and "wait for the origin" are easy to tell apart.
+
+### How to read the output
+
+Example output (10 s origin, `max-age=5`, `stale-while-revalidate=3600`; your numbers will differ a little):
+
+```
+time   X-Cache-Status   answered in   data from origin request   data age
+  0s   MISS               10109 ms   #1                          0 s     first request: waits for the origin
+ 11s   HIT                    6 ms   #1                          1 s     fresh copy from nginx
+ ...
+ 16s   STALE                  5 ms   #1                          6 s     copy is older than max-age: old copy NOW, refresh starts
+ 17s   UPDATING               3 ms   #1                          7 s     refresh still running: still the old copy, instantly
+ ...
+ 25s   UPDATING               2 ms   #1                         15 s
+ 26s   HIT                    2 ms   #2                          0 s     refresh finished: new data (origin request #2)
+```
+
+| Column                     | Meaning                                                                                                                                                                                                                      |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `X-Cache-Status`           | What nginx did: `MISS` (went to the origin), `HIT` (fresh copy), `STALE` (old copy served, refresh started), `UPDATING` (old copy served, a refresh is already running), `EXPIRED` (too old to serve, waited for the origin) |
+| `answered in`              | Milliseconds. A stale answer takes a few ms even though the origin needs 10 s                                                                                                                                                |
+| `data from origin request` | `originHit` inside the JSON. It stays the same while stale copies are served and increases when the refresh lands                                                                                                            |
+| `data age`                 | Seconds since the data was generated. It keeps growing during `UPDATING`                                                                                                                                                     |
+
+If you let the loop run longer than `max-age + stale-while-revalidate` with the origin down, the copy becomes too old and requests wait or fail.
+
+### Why `keepalive_timeout 0;` is needed
+
+Without it, the same script printed `STALE 2 ms`, then **`HIT 9002 ms`**: the second stale request waited for the whole refresh.
+With `proxy_cache_background_update`, nginx keeps the client's connection busy until the background refresh ends
+(nginx ticket #1723), so the next request on the **same keep-alive connection** is not handled until then. Node and browsers reuse connections;
+a separate `curl` command per request does not, which is why curl-only tests looked fine. Trade-off: every request opens a new connection.
